@@ -121,6 +121,62 @@ Implemented exactly per the plan below; the "Start Baton" button now lives in Se
 - GLOBAL branch constraint: this feature lives ONLY on branch `feature/omniroute` (commits fd5eabd + 028a009), pushed to origin/feature/omniroute - NOT merged to main (user merges manually). Keep it based on main e75b8d0.
 - IMPORTANT: the generic process helpers live in baton-daemon-process.ts - DO NOT re-import omniroute into baton or duplicate them; re-export from omniroute-server-process.ts keeps the shared code in one place.
 
+## NEW DEVICE SETUP — point by point (OmniRoute + Claude Code)
+
+Goal: on a fresh machine, make the IDE's OmniRoute pane work AND make the plain `claude` terminal command route through OmniRoute GLOBALLY (the write targets `~/.claude/settings.json`, NOT anything IDE-private). These steps are the exact recipe; the IDE code has NO hardcoded machine paths, so the same steps work on Windows/macOS/Linux.
+
+### 0. Prerequisites on the new device
+1. **Node.js >= 24** (OmniRoute engines: >=22.22.2 <23 || >=24 <27). Verify: `node --version`.
+2. **pnpm** (to build the IDE). Verify: `pnpm --version`. If missing: `npm i -g pnpm`.
+3. **Git** (IDE repo). Verify: `git --version`.
+4. **OmniRoute CLI installed globally** so `resolveCliCommand('omniroute')` finds it. Verify: `omniroute --version` (expect 3.8.x). Install per OmniRoute docs (npm global or their installer) — after install the `omniroute` bin must be on PATH for the current user (npm global bin dir).
+5. **Claude Code installed** so `claude --version` resolves (the IDE auto-config only triggers when Claude Code is available). Verify: `claude --version`.
+6. Optional but needed for local dev: the repository itself (`git clone https://github.com/Gagan-k0/IDE.git`, then `git checkout feature/omniroute` — the OmniRoute feature is NOT on main; the user merges manually).
+
+### 1. Build the IDE (new machine)
+1. `cd` into the repo.
+2. `pnpm install` (postinstall compiles native modules — needs VS Build Tools on Windows; on macOS/Linux no extra toolchain required).
+3. `pnpm run typecheck` — must be clean.
+4. Windows: `pnpm run build:win` → `dist\win-unpacked\LogicMantra.exe`. macOS: build the .app via the standard mac target (not yet verified in this repo — see note below). Linux: `logicmantra-ide` target.
+5. Run the app. There is NO per-device configuration file to edit — everything comes from the CLI + user home dir.
+
+### 2. First-run setup inside the IDE (per new device)
+1. Open the IDE → Settings (gear icon) → **OmniRoute** (group "capabilities", next to Orchestration/Baton).
+2. Confirm the status line shows: OmniRoute CLI v3.8.x ✓, Node v24.x ✓, Claude Code ✓, "Claude Code: Not configured for OmniRoute".
+3. Click **Start OmniRoute**. This does THREE things in one flow:
+   a. Starts the gateway server detached via `serve --daemon --no-open --port 20128` (NO terminal window opens) — or reuses one already listening on 127.0.0.1:20128.
+   b. Auto-runs `configureClaude` (because Claude Code is available and not yet configured): runs `omniroute setup-claude` → writes per-model profiles to `~/.claude/profiles/<name>/settings.json` (one per model in the live /v1/models catalog), then writes the default `~/.claude/settings.json` env block (see step 3).
+   c. Opens the OmniRoute dashboard (http://127.0.0.1:20128) in the IDE's built-in browser tab.
+4. Verify the pane now shows the server running (url/version/pid) and "Claude Code: Configured for OmniRoute".
+
+### 3. What the machine's GLOBAL Claude config becomes (IMPORTANT — global, not IDE-only)
+After `configureClaude`, `~/.claude/settings.json` gets these env vars MERGED into its existing `env` block (existing unrelated settings are preserved):
+- `ANTHROPIC_BASE_URL = http://127.0.0.1:20128` (NO `/v1` suffix)
+- `ANTHROPIC_AUTH_TOKEN = omniroute-no-auth` (sentinel — newer Claude Code skips its login gate against the open OmniRoute backend)
+- `ANTHROPIC_MODEL = auto`
+- `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = 1`
+- `CLAUDE_CODE_AUTO_COMPACT_WINDOW = 190000`
+
+The original file is first backed up to `~/.claude/settings.json.omniroute-backup`. Effect: running `claude` in ANY terminal on that machine now talks to OmniRoute (which routes to the configured providers), NOT to Anthropic directly.
+
+### 4. Verify on the new device (terminal, outside the IDE)
+1. `claude` — the session should connect (no Anthropic login gate) and list models from the gateway.
+2. `curl http://127.0.0.1:20128/api/monitoring/health` → `{ status, version, system.pid, setupComplete: true, providerSummary }` (server up).
+3. Check `~/.claude/settings.json` contains `ANTHROPIC_BASE_URL=http://127.0.0.1:20128` and that `~/.claude/settings.json.omniroute-backup` exists.
+
+### 5. Undo / restore original Claude config (per machine)
+1. Stop the gateway: IDE → Settings → OmniRoute → **Stop**.
+2. Restore the original Claude Code settings:
+   `Copy-Item "$env:USERPROFILE\.claude\settings.json.omniroute-backup" "$env:USERPROFILE\.claude\settings.json" -Force` (Windows) or `cp ~/.claude/settings.json.omniroute-backup ~/.claude/settings.json` (macOS/Linux).
+3. Re-run the IDE's Start OmniRoute + Configure Claude Code whenever you want it pointed at OmniRoute again (idempotent).
+
+### 6. Caveats for a new device
+- **macOS**: the IDE code is portable (settings write uses `homedir()`; daemon spawn uses `--daemon`, `windowsHide` only affects Windows; taskkill is win32-guarded). NOT yet run/verified on macOS — expect it to work, but it is untested. The mac icon-source (`resources/icon-source/icon.icon`) still references the old logo — only matters for Xcode builds.
+- **First Start requires the server**; `configureClaude` auto-starts it if down, so "Configure Claude Code" also works when the server is stopped.
+- **`omniroute setup-claude` needs the server running** (it fetches the live model catalog) — the IDE flow guarantees this by starting first.
+- **Port 20128** must be free-ish; if another OmniRoute already listens there, the IDE reuses it (health probe), it does not kill it.
+- **The feature lives on branch `feature/omniroute`** — a fresh clone defaults to main and will NOT have the OmniRoute pane until the user merges the branch (they merge manually).
+
 ### MANDATORY: rebuild after ANY OmniRoute change
 
 Same rule as Baton: ANY change under the OmniRoute integration paths (src/shared/omniroute-types.ts, src/main/ipc/omniroute*.ts, src/preload/api/omniroute-api.ts + preload wiring, src/renderer/src/components/settings/OmniRoutePane.tsx + omniroute-search.ts, Settings.tsx / useSettingsNavigationMetadata.ts / settings-navigation-types.ts / en.json OmniRoute keys) MUST be followed by `pnpm run build:win`.
