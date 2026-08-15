@@ -928,7 +928,9 @@
         "automationsDescription": "Schedule agent work and choose whether Automations appears in the sidebar.",
         "floatingWorkspaceWebDescription": "Global terminal and markdown tabs.",
         "batonTitle": "Baton",
-        "batonDescription": "Set up Baton for the open folder, start its daemon, and open the coordination dashboard."
+        "batonDescription": "Set up Baton for the open folder, start its daemon, and open the coordination dashboard.",
+        "omnirouteTitle": "OmniRoute",
+        "omnirouteDescription": "Run the OmniRoute gateway, generate Claude Code profiles for each model, and open the dashboard."
       },
       "useAppMenuPaste": {
         "pasteTooLarge": "Paste is too large."
@@ -7336,7 +7338,9 @@
           "linearDescription": "How Linear works in LogicMantra, setup checklist, agent skill, and example prompts.",
           "tasksDescription": "Connect providers, install the Linear skill, and choose what appears in Tasks.",
           "batonTitle": "Baton",
-          "batonDescription": "Set up Baton for the open folder, start its daemon, and open the coordination dashboard."
+          "batonDescription": "Set up Baton for the open folder, start its daemon, and open the coordination dashboard.",
+          "omnirouteTitle": "OmniRoute",
+          "omnirouteDescription": "Run the OmniRoute gateway, generate Claude Code profiles for each model, and open the dashboard."
         },
         "SettingsFormControls": {
           "42a4d15a30": "No matching fonts.",
@@ -10736,6 +10740,43 @@
           "start": "Start Baton",
           "starting": "Starting...",
           "openDashboard": "Open Dashboard",
+          "stop": "Stop"
+        },
+        "omniroute": {
+          "search": {
+            "title": "OmniRoute AI gateway",
+            "description": "Run the OmniRoute gateway, set up Claude Code profiles, and open the dashboard.",
+            "keywordOmniRoute": "omniroute",
+            "keywordGateway": "gateway",
+            "keywordRouter": "router",
+            "keywordProxy": "proxy",
+            "keywordClaude": "claude",
+            "keywordProviders": "providers",
+            "keywordFallback": "fallback",
+            "keywordModel": "model",
+            "keywordSetup": "setup",
+            "keywordDashboard": "dashboard"
+          }
+        },
+        "OmniRoutePane": {
+          "title": "OmniRoute AI gateway",
+          "description": "Run the OmniRoute gateway, generate Claude Code profiles for each model, and open the dashboard.",
+          "checking": "Checking OmniRoute...",
+          "status": "Status",
+          "notInstalled": "OmniRoute CLI is not installed on this computer. Install it with: npm install -g omniroute",
+          "installed": "OmniRoute CLI v{{version}} — ready",
+          "nodeLabel": "Node",
+          "claudeLabel": "Claude Code",
+          "serverLabel": "Gateway server",
+          "serverRunning": "Running on {{url}}",
+          "serverStopped": "Stopped",
+          "serverVersion": "Server version",
+          "pidLabel": "PID",
+          "dashboardTitle": "OmniRoute Dashboard",
+          "start": "Start OmniRoute",
+          "starting": "Starting...",
+          "openDashboard": "Open Dashboard",
+          "setupClaude": "Setup Claude Code",
           "stop": "Stop"
         }
       },

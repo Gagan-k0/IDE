@@ -39,6 +39,7 @@ const SETTINGS_NAV_TARGETS = [
   'agents',
   'orchestration',
   'baton',
+  'omniroute',
   'artifacts',
   'automations',
   'orca-account',

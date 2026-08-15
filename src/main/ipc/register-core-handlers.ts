@@ -50,6 +50,7 @@ import { registerKeybindingHandlers } from './keybindings'
 import { registerTelemetryHandlers } from './telemetry'
 import { registerShellHandlers } from './shell'
 import { registerBatonHandlers } from './baton'
+import { registerOmniRouteHandlers } from './omniroute'
 import { registerPetHandlers } from './pet'
 import { registerPluginHandlers } from './plugins'
 import { registerUIHandlers, setTrustedUIRendererWebContentsId } from './ui'
@@ -200,6 +201,7 @@ export function registerCoreHandlers(
   registerBrowserHandlers()
   registerShellHandlers(store)
   registerBatonHandlers()
+  registerOmniRouteHandlers()
   registerPetHandlers()
   registerSessionHandlers(store)
   registerUIHandlers(store, { isDashboardPopoutRenderer })

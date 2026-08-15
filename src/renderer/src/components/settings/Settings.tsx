@@ -58,6 +58,7 @@ import { PluginsSettingsSection } from './PluginsSettingsSection'
 import { AgentsPane } from './AgentsPane'
 import { OrchestrationPane } from './OrchestrationPane'
 import { BatonPane } from './BatonPane'
+import { OmniRoutePane } from './OmniRoutePane'
 import { ArtifactsSettingsPane } from './ArtifactsSettingsPane'
 import { AutomationsSettingsPane } from './AutomationsSettingsPane'
 import { OrcaAccountSettingsPane } from './OrcaAccountSettingsPane'
@@ -1316,6 +1317,21 @@ function Settings(): React.JSX.Element {
                   searchEntries={getSectionSearchEntries('baton')}
                 >
                   {isSectionMounted('baton') ? <BatonPane /> : null}
+                </SettingsSection>
+
+                <SettingsSection
+                  id="omniroute"
+                  title={translate(
+                    'auto.components.settings.Settings.omnirouteTitle',
+                    'OmniRoute'
+                  )}
+                  description={translate(
+                    'auto.components.settings.Settings.omnirouteDescription',
+                    'Run the OmniRoute gateway, generate Claude Code profiles for each model, and open the dashboard.'
+                  )}
+                  searchEntries={getSectionSearchEntries('omniroute')}
+                >
+                  {isSectionMounted('omniroute') ? <OmniRoutePane /> : null}
                 </SettingsSection>
 
                 {linearConnected ? (

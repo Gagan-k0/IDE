@@ -21,6 +21,11 @@ import type {
   BatonDaemonStatus,
   BatonSetupResult
 } from '../shared/baton-types'
+import type {
+  OmniRouteAvailability,
+  OmniRouteServerStatus,
+  OmniRouteSetupResult
+} from '../shared/omniroute-types'
 import type { AgentHookInstallStatus } from '../shared/agent-hook-types'
 import type { CodexConfigSyncStatus } from '../shared/codex-config-sync-types'
 import type { TerminalPaneSplitSource } from '../shared/feature-education-telemetry'
@@ -2904,6 +2909,16 @@ const api = {
     stopDaemon: (): Promise<BatonDaemonStatus> => ipcRenderer.invoke('baton:stopDaemon'),
     isSetupComplete: (folderPath: string): Promise<boolean> =>
       ipcRenderer.invoke('baton:isSetupComplete', folderPath)
+  },
+
+  omniRoute: {
+    getAvailability: (): Promise<OmniRouteAvailability> =>
+      ipcRenderer.invoke('omniroute:getAvailability'),
+    setupClaude: (): Promise<OmniRouteSetupResult> => ipcRenderer.invoke('omniroute:setupClaude'),
+    getServerStatus: (): Promise<OmniRouteServerStatus> =>
+      ipcRenderer.invoke('omniroute:getServerStatus'),
+    startServer: (): Promise<OmniRouteServerStatus> => ipcRenderer.invoke('omniroute:startServer'),
+    stopServer: (): Promise<OmniRouteServerStatus> => ipcRenderer.invoke('omniroute:stopServer')
   },
 
   emulator: {
