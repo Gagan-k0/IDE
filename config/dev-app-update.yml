@@ -1,0 +1,4 @@
+provider: github
+owner: logicmantra
+repo: logicmantra
+updaterCacheDirName: logicmantra-updater
