@@ -16,12 +16,13 @@ tags:
 ## Mission
 
 1. Convert the Orca IDE codebase (originally `stablyai/orca`, v1.4.178-rc.2) into a rebranded **LogicMantra IDE** ("Next-gen IDE for parallel agentic development") and replace its logo with `C:\Users\lenovo\Desktop\LogicMantra\ide logo.png`. — COMPLETE (naming + logo + Windows build verified).
-2. **Integrate the Baton multi-agent coordination CLI** (`baton-cli` 0.0.1) into the IDE: a "Start Baton" settings pane that runs full `baton setup` for the folder where the IDE is open, starts the baton daemon, and opens the dashboard (http://127.0.0.1:7077) in the built-in browser tab. — **DONE (implemented + built 2026-08-14)**. Use it via Settings → Baton.
+2. **Integrate the Baton multi-agent coordination CLI** (`baton-cli` 0.0.1) into the IDE: a "Start Baton" settings pane that runs full `baton setup` for the folder where the IDE is open, starts the baton daemon, and opens the dashboard (http://127.0.0.1:7077) in the built-in browser tab. — **DONE (implemented + built 2026-08-14)**. Use it via Settings → Baton. **BUG FIXED 2026-08-15** (wrong knowledge graph — see "Baton wrong-graph bug" below).
+3. **Track the project on GitHub.** — **DONE 2026-08-15**: `LogicMantra IDE` is now a git repo with remote `origin` → https://github.com/Gagan-k0/IDE.git (branch `main`), first push `c1ef7a1` ("LogicMantra IDE: rebrand, Baton daemon fix, project docs"). README.md rebranded + detailed; PROJECT.md added. See "GitHub milestone (2026-08-15)" below.
 
 ## Layout (do not confuse)
 
 - `C:\Users\lenovo\Desktop\LogicMantra\orca` — pristine git checkout (upstream `origin/main`, cb42b60849). Read-only reference for diffs.
-- `C:\Users\lenovo\Desktop\LogicMantra\LogicMantra IDE` — THE WORKING COPY (no git). All edits happen here.
+- `C:\Users\lenovo\Desktop\LogicMantra\LogicMantra IDE` — THE WORKING COPY. All edits happen here. **Now a git repo**: remote `origin` → https://github.com/Gagan-k0/IDE.git, branch `main`, committed + pushed (first commit `c1ef7a1`, 2026-08-15). Push new work with `git push`.
 - `C:\Users\lenovo\Desktop\LogicMantra\ide logo.png` — the logo to use for the IDE (561x513, full-color dark tile, near-black bg ~#05060B with bright blue/orange accents — NOT a transparent glyph like the old white whale).
 - `C:\Users\lenovo\Desktop\LogicMantra\Baton-Multi-Agent-` — the BATON project source being integrated (npm package `baton-cli` 0.0.1, AGPL-3.0, Node >= 24, git + uv + tmux-optional). Docs: `docs/README.md`, `docs/installation.md`, `docs/quickstart.md`, `docs/cli-reference.md` in that folder + https://baton-landing.vercel.app/ + https://github.com/Rakshan001/Baton-Multi-Agent-. This folder ALSO has an already-set-up `kb/` (knowledge graph: `projects` + `kb-manifest.json`) and a daemon already running on 127.0.0.1:7077 — the IDE feature must tolerate "already set up / already running".
 - Baton is installed GLOBALLY (npm link): `C:\Users\lenovo\AppData\Roaming\npm\baton.cmd`, `baton --version` = 0.0.1. Environment: node v24.16.0, git 2.51.0.windows.1, uv 0.11.28. tmux NOT installed (optional — dashboard terminal sessions unavailable).
@@ -101,12 +102,37 @@ Implemented exactly per the plan below; the "Start Baton" button now lives in Se
 - Windows: use `getSpawnArgsForWindows`; exe is `LogicMantra.exe`; productName `LogicMantra IDE`; locales no-BOM CRLF; internal identifiers stay `orca` (see Naming decision).
 - Docs to re-read if unsure: `C:\Users\lenovo\Desktop\LogicMantra\Baton-Multi-Agent-\docs\*.md`, `src/commands/setup.ts`, `src/commands/serve.ts` in the baton repo.
 
+## Baton wrong-graph bug (fixed 2026-08-15 — this milestone)
+
+**Symptom**: after Baton setup, the knowledge graph shown was for a DIFFERENT folder than the one open in the IDE (e.g. `Desktop\Baton-Multi-Agent-` instead of the IDE's target folder).
+
+**Root cause**: the old `startDaemon` reused ANY daemon already listening on 127.0.0.1:7077 without checking which folder it serves. `baton serve` resolves its KB root from its OWN cwd (`resolveBatonRoot()`: nearest `.baton` walking up, else git root — see `Baton-Multi-Agent-\src\store.ts`), so a stale daemon kept serving its own folder's graph. ALSO learned live: the installed baton 0.0.1 `/api/meta` does NOT always report `pid` (META_PID was empty/null), and killing the `cmd` parent process leaves the node daemon alive — so PID must be found via the process LISTENING on the port.
+
+**Fix**: extracted ALL daemon lifecycle logic into a new module `src/main/ipc/baton-daemon.ts` (kept `src/main/ipc/baton.ts` under the 300-line oxlint limit — max-lines disables are FORBIDDEN in this repo):
+- `probeDaemonMeta()` — GET /api/meta to learn repo + pid of a running daemon.
+- `resolveBatonRootFor(folderPath)` — mirrors baton's resolveBatonRoot (nearest `.baton` up; `hubClaimsProject` handles hub-shadow kb.json; else `git rev-parse --show-toplevel`; else null).
+- `pidListeningOnPort(port)` — netstat -ano on win32 / lsof -t on mac+linux (fallback when meta.pid is null).
+- `startBatonDaemon(folderPath)` — reuse daemon if it already serves the SAME root; else kill the port listener (taskkill /pid N /t /f on win32, SIGTERM elsewhere) → waitForDaemonGone → spawn `baton serve --write -p 7077` with `cwd = resolvedRoot` → waitForDaemonReady → re-probe /api/meta and refuse success if it answers a DIFFERENT repo.
+- `stopBatonDaemon()` — kills the tracked child AND any other process still on the Baton port.
+- `BatonDaemonStatus` gained `root: string | null` (`src/shared/baton-types.ts`); `BatonPane.tsx` shows a "Serving: {root}" line; en.json got key `servingLabel` (BatonPane). Typecheck + oxlint (default, type-aware, native-plugins) + all 3 localization verifies green.
+
+**Proof**: temporary e2e vitest test (`src/main/ipc/baton-daemon.test.ts`) started a real `baton serve` in a foreign folder (`kamakshi-fresh`), called the real `startBatonDaemon()` for a target folder, and asserted /api/meta then reports the target folder. PASSED → then DELETED. Port 7077 verified clean afterwards.
+
+## GitHub milestone (2026-08-15)
+
+- Repo created + pushed: `git init -b main` → remote `origin` = https://github.com/Gagan-k0/IDE.git → first commit `c1ef7a1` → `git push -u origin main`. Remote verified (`git ls-remote origin` → main = c1ef7a1). ~141 MB / 13,780 files committed.
+- **Docs written**: README.md fully rebranded + detailed (features table, repo layout, build, Baton section, license). NEW `PROJECT.md` — detailed engineering doc (project map, stack, build/verify commands, Baton integration incl. the wrong-graph fix, rebrand scope, git workflow, conventions, status/roadmap). brain.md (this file) updated with every milestone.
+- **`.gitignore` decisions**: kept the upstream file; REMOVED the `!docs/assets/` re-include (was committing ≈250 MB of upstream Orca showcase GIFs — unnecessary for the rebrand); ADDED `.baton/` (machine-local baton state) and `graphify-out/` (graphify build output). `config/patches/@xterm__xterm@6.1.0-beta.287.patch` (73 MB) is KEPT — required by pnpm patched deps for `pnpm install`.
+- **Git config on this machine**: user.name `Gagan-k0`, user.email `gagan@foxwel.ai`; credential helper = Git Credential Manager (`manager`, system-level) — push reuses cached/token auth. `gh` CLI is NOT installed (use plain `git` for GitHub operations).
+- **Tools used this milestone**: git (init/remote/push/ls-remote), pnpm (typecheck, oxlint, verify:localization-*), vitest (temp e2e), PowerShell (netstat/taskkill for daemon PID checks), Git Credential Manager (push auth).
+
 ## Build & Verification (current)
 
 - `pnpm install` (1280 pkgs; postinstall native rebuild historically failed on windows-native-registry without VS C++ — now WORKS after installing `Microsoft.VisualStudio.2022.BuildTools` via winget with VCTools workload).
 - `pnpm run typecheck` — clean (all three tsconfig passes).
 - `pnpm run verify:localization-catalog` — clean. `verify:localization-extraction` — clean. `verify:localization-coverage` — clean.
 - `pnpm exec oxlint` — clean.
+- 2026-08-15 (baton-daemon.ts milestone) re-verified: `pnpm run typecheck` clean; `pnpm exec oxlint --config config/oxlint-code-quality-type-aware.json --deny-warnings` clean on changed files; `pnpm exec oxlint --config config/oxlint-code-quality-native-plugins.json --deny-warnings` clean; `verify:localization-catalog` (11,831 refs), `verify:localization-extraction`, `verify:localization-coverage` (12 allowlisted) all clean.
 - `pnpm run build:win` — PASSED end-to-end (latest 2026-08-14 ~11:54 PM with the Baton feature). Output: `dist\logicmantra-windows-setup.exe` (~188 MB), `dist\win-unpacked\LogicMantra.exe`, `latest.yml`, `.blockmap`, `builder-debug.yml`.
 - Verified: exe `VersionInfo` shows FileDescription/ProductName = **"LogicMantra IDE"**, CompanyName = **"logicmantra"**.
 - Build blockers fixed along the way: (1) missing VS Build Tools → winget `Microsoft.VisualStudio.2022.BuildTools` (VCTools workload) to compile windows-native-registry; (2) `win.executableName: 'Orca'` → `'LogicMantra'`; (3) hand-built `icon.ico` had corrupt size headers → resedit crashed (`Invalid typed array length`) → regenerated with Pillow (4 valid entries 16/32/48/256, 74,832 bytes); (4) corrupt 62-byte `icon.icns` → regenerated with Pillow (1,174,850 bytes, 7 frames); (5) `UNRESOLVED_IMPORT` for `resources/logo.svg` in `share-card-utils.tsx` — path must be 5 ups (stats/ is at components/ depth), mobile HomeSlide needs 6 ups. (6) Baton integration — all verify checks + build green on first pass.
