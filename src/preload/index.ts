@@ -25,8 +25,7 @@ import type {
   OmniRouteAvailability,
   OmniRouteClaudeConfig,
   OmniRouteConfigureClaudeResult,
-  OmniRouteServerStatus,
-  OmniRouteSetupResult
+  OmniRouteServerStatus
 } from '../shared/omniroute-types'
 import type { AgentHookInstallStatus } from '../shared/agent-hook-types'
 import type { CodexConfigSyncStatus } from '../shared/codex-config-sync-types'
@@ -2916,7 +2915,6 @@ const api = {
   omniRoute: {
     getAvailability: (): Promise<OmniRouteAvailability> =>
       ipcRenderer.invoke('omniroute:getAvailability'),
-    setupClaude: (): Promise<OmniRouteSetupResult> => ipcRenderer.invoke('omniroute:setupClaude'),
     getServerStatus: (): Promise<OmniRouteServerStatus> =>
       ipcRenderer.invoke('omniroute:getServerStatus'),
     startServer: (): Promise<OmniRouteServerStatus> => ipcRenderer.invoke('omniroute:startServer'),

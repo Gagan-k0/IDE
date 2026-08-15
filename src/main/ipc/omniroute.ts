@@ -164,7 +164,6 @@ async function runConfigureClaude(): Promise<OmniRouteConfigureClaudeResult> {
 
 export function registerOmniRouteHandlers(): void {
   ipcMain.handle('omniroute:getAvailability', (): Promise<OmniRouteAvailability> => getAvailability())
-  ipcMain.handle('omniroute:setupClaude', (): Promise<OmniRouteSetupResult> => runSetupClaude())
   ipcMain.handle('omniroute:getServerStatus', (): Promise<OmniRouteServerStatus> =>
     getOmniRouteServerStatus()
   )
