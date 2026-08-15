@@ -116,7 +116,10 @@ handoff. It is installed globally (`npm link`) on this machine.
 The IDE exposes it at **Settings → Baton**:
 
 - **Start Baton** — runs the full `baton setup --yes --local --serve <open-folder>`, starts the
-  daemon on `http://127.0.0.1:7077`, and opens the dashboard in a browser tab.
+  daemon on `http://127.0.0.1:7077`, and opens the dashboard in a browser tab. It also
+  **auto-installs the full skill catalog** (`GET /api/skills` → `POST /api/skills/:id/install`
+  with `agent: "all"`), so every writable agent has every Baton skill ready; the pane shows
+  "Skills installed: N / M".
 - **Open Dashboard** — opens `http://127.0.0.1:7077` in a tab.
 - **Stop** — stops the daemon (kills the process listening on the Baton port).
 
@@ -129,6 +132,8 @@ Guarantees implemented in `src/main/ipc/baton-daemon.ts`:
   correct folder. This fixes the "graph shows another folder's knowledge" bug.
 - Tolerates "already set up / already running": an existing setup or daemon for the same folder
   is reused; a daemon for a different folder is replaced.
+- The dashboard UI is restyled to match the IDE design (zinc palette, Geist typeface); the
+  built assets are served from the Baton package's `web/dist`.
 
 See `brain.md` → "Baton integration notes" for the full design and command reference.
 

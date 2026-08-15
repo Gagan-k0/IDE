@@ -13,12 +13,20 @@ export type BatonSetupResult = {
   error: string | null
 }
 
+export type BatonSkillInstallSummary = {
+  total: number
+  installed: number
+  failed: string[]
+}
+
 export type BatonDaemonStatus = {
   running: boolean
   url: string
   pid: number | null
   /** The repo folder the running daemon actually serves (from /api/meta). */
   root: string | null
+  /** Result of the automatic "install all skills" run, or null if not done/failed. */
+  skills: BatonSkillInstallSummary | null
 }
 
 export const BATON_DAEMON_PORT = 7077

@@ -1,13 +1,21 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { readFileSync, realpathSync, statSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import type { BatonDaemonStatus } from '../../shared/baton-types'
 import { BATON_DAEMON_PORT, BATON_DAEMON_URL } from '../../shared/baton-types'
 import { resolveCliCommand } from '../../shared/node-cli-command-resolution'
 import { getSpawnArgsForWindows } from '../win32-utils'
-
-const DAEMON_READY_POLL_INTERVAL_MS = 500
-const DAEMON_READY_TIMEOUT_MS = 20 * 1000
+import {
+  captureCommandOutput,
+  isDaemonReachable,
+  killDaemonPid,
+  pidListeningOnPort,
+  probeDaemonMeta,
+  samePath,
+  waitForDaemonGone,
+  waitForDaemonReady
+} from './baton-daemon-process'
+import { clearSkillsSummary, getSkillsSummary, installAllBatonSkills } from './baton-skill-install'
 
 let trackedDaemonChild: ChildProcess | null = null
 let currentDaemonPid: number | null = null
@@ -18,91 +26,6 @@ export function isExistingDirectory(folderPath: string): boolean {
   } catch {
     return false
   }
-}
-
-export async function captureCommandOutput(
-  command: string,
-  args: string[],
-  options: { cwd: string; timeoutMs?: number }
-): Promise<{ stdout: string; stderr: string; code: number | null }> {
-  const { spawnCmd, spawnArgs } = getSpawnArgsForWindows(command, args)
-  return new Promise((resolve) => {
-    const child = spawn(spawnCmd, spawnArgs, {
-      cwd: options.cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
-    })
-    let stdout = ''
-    let stderr = ''
-    let settled = false
-    const timer =
-      options.timeoutMs && options.timeoutMs > 0
-        ? setTimeout(() => {
-            if (settled) {
-              return
-            }
-            settled = true
-            child.kill()
-            resolve({ stdout, stderr: `${stderr}\nTimed out after ${options.timeoutMs}ms.`, code: null })
-          }, options.timeoutMs)
-        : null
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf-8')
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf-8')
-    })
-    child.once('error', () => {
-      if (settled) {
-        return
-      }
-      settled = true
-      if (timer) {
-        clearTimeout(timer)
-      }
-      resolve({ stdout, stderr, code: null })
-    })
-    child.once('close', (code) => {
-      if (settled) {
-        return
-      }
-      settled = true
-      if (timer) {
-        clearTimeout(timer)
-      }
-      resolve({ stdout, stderr, code })
-    })
-  })
-}
-
-async function isDaemonReachable(): Promise<boolean> {
-  try {
-    const response = await fetch(BATON_DAEMON_URL, { signal: AbortSignal.timeout(2_000) })
-    return response.ok || response.status === 401 || response.status === 403
-  } catch {
-    return false
-  }
-}
-
-async function probeDaemonMeta(): Promise<{ repo: string | null; pid: number | null }> {
-  try {
-    const response = await fetch(`${BATON_DAEMON_URL}/api/meta`, { signal: AbortSignal.timeout(2_000) })
-    if (!response.ok) {
-      return { repo: null, pid: null }
-    }
-    const body = (await response.json()) as { repo?: unknown; pid?: unknown }
-    return {
-      repo: typeof body.repo === 'string' ? body.repo : null,
-      pid: typeof body.pid === 'number' ? body.pid : null
-    }
-  } catch {
-    return { repo: null, pid: null }
-  }
-}
-
-function samePath(a: string, b: string): boolean {
-  const norm = (p: string) => (process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p))
-  return norm(a) === norm(b)
 }
 
 function hubClaimsProject(hub: string, child: string): boolean {
@@ -152,71 +75,6 @@ async function resolveBatonRootFor(folderPath: string): Promise<string | null> {
   return result.code === 0 && root ? root : null
 }
 
-function killDaemonPid(pid: number): void {
-  if (process.platform === 'win32') {
-    try {
-      spawn('taskkill', ['/pid', String(pid), '/t', '/f'], {
-        stdio: 'ignore',
-        windowsHide: true
-      })
-      return
-    } catch {
-      // fall through to the signal path
-    }
-  }
-  try {
-    process.kill(pid, 'SIGTERM')
-  } catch {
-    // already gone
-  }
-}
-
-async function pidListeningOnPort(port: number): Promise<number | null> {
-  if (process.platform === 'win32') {
-    const result = await captureCommandOutput('netstat', ['-ano'], {
-      cwd: process.cwd(),
-      timeoutMs: 5_000
-    })
-    const wanted = `:${port}`
-    for (const line of result.stdout.split(/\r?\n/)) {
-      if (line.includes(wanted) && line.includes('LISTENING')) {
-        const pid = line.trim().split(/\s+/).at(-1)
-        if (pid && /^\d+$/.test(pid)) {
-          return Number(pid)
-        }
-      }
-    }
-    return null
-  }
-  const result = await captureCommandOutput('lsof', ['-t', `-i:${port}`, '-sTCP:LISTEN'], {
-    cwd: process.cwd(),
-    timeoutMs: 5_000
-  })
-  const pid = result.stdout.trim()
-  return /^\d+$/.test(pid) ? Number(pid) : null
-}
-
-async function waitForDaemonGone(timeoutMs = 10_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (!(await isDaemonReachable())) {
-      return
-    }
-    await new Promise((resolve) => setTimeout(resolve, 300))
-  }
-}
-
-async function waitForDaemonReady(): Promise<boolean> {
-  const deadline = Date.now() + DAEMON_READY_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    if (await isDaemonReachable()) {
-      return true
-    }
-    await new Promise((resolve) => setTimeout(resolve, DAEMON_READY_POLL_INTERVAL_MS))
-  }
-  return false
-}
-
 export async function getBatonDaemonStatus(): Promise<BatonDaemonStatus> {
   const running = await isDaemonReachable()
   const meta = running ? await probeDaemonMeta() : null
@@ -224,7 +82,8 @@ export async function getBatonDaemonStatus(): Promise<BatonDaemonStatus> {
     running,
     url: BATON_DAEMON_URL,
     pid: meta?.pid ?? currentDaemonPid,
-    root: meta?.repo ?? null
+    root: meta?.repo ?? null,
+    skills: running ? getSkillsSummary() : null
   }
 }
 
@@ -262,6 +121,7 @@ export async function startBatonDaemon(folderPath: string): Promise<BatonDaemonS
   if (meta.repo && samePath(meta.repo, root)) {
     trackedDaemonChild = null
     currentDaemonPid = meta.pid
+    await installAllBatonSkills()
     return getBatonDaemonStatus()
   }
   const foreignPid = meta.pid ?? (await pidListeningOnPort(BATON_DAEMON_PORT))
@@ -270,7 +130,7 @@ export async function startBatonDaemon(folderPath: string): Promise<BatonDaemonS
     await waitForDaemonGone()
   }
   if (await isDaemonReachable()) {
-    return { running: false, url: BATON_DAEMON_URL, pid: null, root: null }
+    return { running: false, url: BATON_DAEMON_URL, pid: null, root: null, skills: null }
   }
   killTrackedDaemon()
   const command = resolveCliCommand('baton')
@@ -302,18 +162,20 @@ export async function startBatonDaemon(folderPath: string): Promise<BatonDaemonS
   const ready = await waitForDaemonReady()
   if (!ready) {
     killTrackedDaemon()
-    return { running: false, url: BATON_DAEMON_URL, pid: null, root: null }
+    return { running: false, url: BATON_DAEMON_URL, pid: null, root: null, skills: null }
   }
   const after = await probeDaemonMeta()
   if (after.repo && !samePath(after.repo, root)) {
     killTrackedDaemon()
-    return { running: false, url: BATON_DAEMON_URL, pid: null, root: null }
+    return { running: false, url: BATON_DAEMON_URL, pid: null, root: null, skills: null }
   }
+  await installAllBatonSkills()
   return getBatonDaemonStatus()
 }
 
 export async function stopBatonDaemon(): Promise<BatonDaemonStatus> {
   killTrackedDaemon()
+  clearSkillsSummary()
   const meta = await probeDaemonMeta()
   const pid = meta.pid ?? (await pidListeningOnPort(BATON_DAEMON_PORT))
   if (pid) {

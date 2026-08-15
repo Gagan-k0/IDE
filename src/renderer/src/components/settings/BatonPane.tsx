@@ -211,6 +211,12 @@ export function BatonPane(): React.JSX.Element {
                 {translate('auto.components.settings.BatonPane.servingLabel', 'Serving')}: {daemon.root}
               </p>
             ) : null}
+            {daemon?.running && daemon.skills ? (
+              <p className="mt-1 text-muted-foreground">
+                {translate('auto.components.settings.BatonPane.skillsLabel', 'Skills installed')}:{' '}
+                {daemon.skills.installed} / {daemon.skills.total}
+              </p>
+            ) : null}
           </div>
         </div>
       )}

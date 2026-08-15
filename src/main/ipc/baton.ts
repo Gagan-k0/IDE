@@ -4,12 +4,12 @@ import { join } from 'node:path'
 import type { BatonAvailability, BatonDaemonStatus, BatonSetupResult } from '../../shared/baton-types'
 import { resolveCliCommand } from '../../shared/node-cli-command-resolution'
 import {
-  captureCommandOutput,
   getBatonDaemonStatus,
   isExistingDirectory,
   startBatonDaemon,
   stopBatonDaemon
 } from './baton-daemon'
+import { captureCommandOutput } from './baton-daemon-process'
 
 const SETUP_TIMEOUT_MS = 5 * 60 * 1000
 

@@ -18,6 +18,7 @@ tags:
 1. Convert the Orca IDE codebase (originally `stablyai/orca`, v1.4.178-rc.2) into a rebranded **LogicMantra IDE** ("Next-gen IDE for parallel agentic development") and replace its logo with `C:\Users\lenovo\Desktop\LogicMantra\ide logo.png`. — COMPLETE (naming + logo + Windows build verified).
 2. **Integrate the Baton multi-agent coordination CLI** (`baton-cli` 0.0.1) into the IDE: a "Start Baton" settings pane that runs full `baton setup` for the folder where the IDE is open, starts the baton daemon, and opens the dashboard (http://127.0.0.1:7077) in the built-in browser tab. — **DONE (implemented + built 2026-08-14)**. Use it via Settings → Baton. **BUG FIXED 2026-08-15** (wrong knowledge graph — see "Baton wrong-graph bug" below).
 3. **Track the project on GitHub.** — **DONE 2026-08-15**: `LogicMantra IDE` is now a git repo with remote `origin` → https://github.com/Gagan-k0/IDE.git (branch `main`), first push `c1ef7a1` ("LogicMantra IDE: rebrand, Baton daemon fix, project docs"). README.md rebranded + detailed; PROJECT.md added. See "GitHub milestone (2026-08-15)" below.
+4. **Baton: auto-install all skills on Start Baton + restyle the Baton dashboard to match the IDE design.** — **DONE 2026-08-15** (see "Baton skills + dashboard restyle (2026-08-15)" below).
 
 ## Layout (do not confuse)
 
@@ -25,6 +26,10 @@ tags:
 - `C:\Users\lenovo\Desktop\LogicMantra\LogicMantra IDE` — THE WORKING COPY. All edits happen here. **Now a git repo**: remote `origin` → https://github.com/Gagan-k0/IDE.git, branch `main`, committed + pushed (first commit `c1ef7a1`, 2026-08-15). Push new work with `git push`.
 - `C:\Users\lenovo\Desktop\LogicMantra\ide logo.png` — the logo to use for the IDE (561x513, full-color dark tile, near-black bg ~#05060B with bright blue/orange accents — NOT a transparent glyph like the old white whale).
 - `C:\Users\lenovo\Desktop\LogicMantra\Baton-Multi-Agent-` — the BATON project source being integrated (npm package `baton-cli` 0.0.1, AGPL-3.0, Node >= 24, git + uv + tmux-optional). Docs: `docs/README.md`, `docs/installation.md`, `docs/quickstart.md`, `docs/cli-reference.md` in that folder + https://baton-landing.vercel.app/ + https://github.com/Rakshan001/Baton-Multi-Agent-. This folder ALSO has an already-set-up `kb/` (knowledge graph: `projects` + `kb-manifest.json`) and a daemon already running on 127.0.0.1:7077 — the IDE feature must tolerate "already set up / already running".
+- **⚠️ TWO baton copies exist (verified 2026-08-15 — do not confuse):**
+  - `C:\Users\lenovo\Desktop\Baton-Multi-Agent-` — git checkout of upstream `Rakshan001/Baton-Multi-Agent-` at `e5c4feb` ("chore(deps): upgrade to TypeScript 7 ... #25"), built (has `dist/`). **This is the LIVE install**: the global npm link junction `C:\Users\lenovo\AppData\Roaming\npm\node_modules\baton-cli` → this folder, so the daemon the IDE starts (`baton serve`) resolves `WEB_DIST = ../web/dist` relative to ITS `dist/cli.js` and serves **this** copy's `web\dist`.
+  - `C:\Users\lenovo\Desktop\LogicMantra\Baton-Multi-Agent-` — SEPARATE git checkout at `22f7aa9` ("bump execa ... #41"), NO `dist/` (never built the CLI). This is the copy the IDE integration edits/docs reference, and where the dashboard restyle was done.
+  - **Rule: to make a dashboard change VISIBLE to the running daemon, sync the built output to the LIVE copy** — copy `LogicMantra\Baton-Multi-Agent-\web\dist\*` → `Desktop\Baton-Multi-Agent-\web\dist\` (with `-Force`; a plain `Copy-Item web\dist\* ...` silently did NOT overwrite `index.html` the first time — re-copy `index.html` explicitly). Verify by fetching the CSS asset and checking for `Geist` + `#0a0a0a`.
 - Baton is installed GLOBALLY (npm link): `C:\Users\lenovo\AppData\Roaming\npm\baton.cmd`, `baton --version` = 0.0.1. Environment: node v24.16.0, git 2.51.0.windows.1, uv 0.11.28. tmux NOT installed (optional — dashboard terminal sessions unavailable).
 
 ## Conversion state (updated continuously — ALWAYS update after each milestone)
@@ -107,6 +112,8 @@ Implemented exactly per the plan below; the "Start Baton" button now lives in Se
 **ANY change to the Baton integration code MUST be followed by `pnpm run build:win`** (installer + `dist\win-unpacked\LogicMantra.exe`). The EXE is the only thing the user runs — source-only edits are invisible to them. Files that trigger this rule:
 
 - `src/main/ipc/baton-daemon.ts` (daemon lifecycle — the graph fix lives here)
+- `src/main/ipc/baton-daemon-process.ts` (extracted process plumbing: captureCommandOutput, isDaemonReachable, probeDaemonMeta, pidListeningOnPort, killDaemonPid, waitForDaemonGone/Ready, samePath)
+- `src/main/ipc/baton-skill-install.ts` (skill auto-install + summary state)
 - `src/main/ipc/baton.ts` (IPC handlers)
 - `src/shared/baton-types.ts` (types + port/URL constants)
 - `src/preload/api/baton-api.ts` + `src/preload/index.ts` / `api-types.ts`
@@ -130,6 +137,24 @@ Rule of thumb: if a change is under any Baton/`baton` path, run the build before
 - `BatonDaemonStatus` gained `root: string | null` (`src/shared/baton-types.ts`); `BatonPane.tsx` shows a "Serving: {root}" line; en.json got key `servingLabel` (BatonPane). Typecheck + oxlint (default, type-aware, native-plugins) + all 3 localization verifies green.
 
 **Proof**: temporary e2e vitest test (`src/main/ipc/baton-daemon.test.ts`) started a real `baton serve` in a foreign folder (`kamakshi-fresh`), called the real `startBatonDaemon()` for a target folder, and asserted /api/meta then reports the target folder. PASSED → then DELETED. Port 7077 verified clean afterwards.
+
+## Baton skills + dashboard restyle (2026-08-15 — this milestone)
+
+### Skill auto-install on Start Baton
+- User intent: pressing Start Baton should install ALL baton skills (into every writable agent) automatically, so the dashboard catalog is ready without manual `baton skills install`.
+- Baton API used: `GET http://127.0.0.1:7077/api/skills` → `{ skills: [{ id, ... }], agents }`; `POST /api/skills/:id/install` body `{"agent":"all"}`. Write-gated (daemon must run with `--write`) and requires a loopback `Origin` header — the renderer fetch adds `Origin: http://127.0.0.1:7077`. Installs are idempotent (`installSkillEverywhere` writes into each `SKILL_AGENTS` skill dir).
+- New module `src/main/ipc/baton-skill-install.ts` (54 lines): `installAllBatonSkills()` (GET catalog → POST each id with `{"agent":"all"}` → best-effort summary), plus `getSkillsSummary()` / `clearSkillsSummary()` module state (kept out of the daemon file to respect the 300-line oxlint cap).
+- Wired into `baton-daemon.ts`: called after daemon verified in BOTH `startBatonDaemon` paths (reuse + fresh spawn); `BatonDaemonStatus.skills` reflects it in `getBatonDaemonStatus` (only when running); `stopBatonDaemon` clears it. All `{ running: false, ... }` literals now include `skills: null`.
+- `src/shared/baton-types.ts`: new `BatonSkillInstallSummary { total, installed, failed: string[] }` + `skills: BatonSkillInstallSummary | null` on `BatonDaemonStatus`.
+- `BatonPane.tsx` shows a third status line "Skills installed: {installed} / {total}" (only when `skills !== null`); en.json key `skillsLabel`.
+- Refactor: to stay under the 300-line oxlint cap, ALL process plumbing moved from `baton-daemon.ts` (now 186 lines) into `baton-daemon-process.ts` (`captureCommandOutput`, `isDaemonReachable`, `probeDaemonMeta`, `killDaemonPid`, `pidListeningOnPort`, `waitForDaemonGone`, `waitForDaemonReady`, `samePath`). `baton.ts` now imports `captureCommandOutput` from `baton-daemon-process`. `max-lines` disables remain FORBIDDEN.
+
+### Dashboard restyle (baton web → LogicMantra IDE design)
+- Edited `C:\Users\lenovo\Desktop\LogicMantra\Baton-Multi-Agent-\web\` (the LogicMantra copy, checkout `22f7aa9`):
+  - `web\src\styles\tokens.css` — rewritten to the IDE zinc palette for dark + light: bg `#0a0a0a`, card `#171717`, secondary `#262626`, accent `#404040` (was blue), fg `#fafafa`, muted-fg `#a1a1a1`, ring `#737373`, border `rgb(255 255 255 / 0.07)`; semantic colors kept.
+  - Font **Geist**: `Geist-Variable.woff2` copied from the IDE's `src\renderer\src\assets\fonts\` into `web\src\styles\fonts\`; `@font-face` added; `web\index.html` Google Fonts links (Inter/JetBrains Mono) REMOVED; `GraphCanvas.tsx` mono constant now `var(--font-mono, ...)`.
+  - Build: `npm install --prefix web` (142 pkgs) + `npm run build --prefix web` (= `tsc -b && vite build`) → `web\dist\assets\index-RySKq48i.css` + `Geist-Variable-CrgPqtmy.woff2` bundled. Hardcoded data/semantic palettes (graph node colors etc.) left alone.
+- **Live-serving sync**: since the running daemon serves the LIVE copy's `web\dist`, copied the new build there (`Desktop\Baton-Multi-Agent-\web\dist`). VERIFIED live: daemon on 7077 now serves `index-RySKq48i.css`, CSS contains `Geist` + `#0a0a0a`. (First `Copy-Item web\dist\*` did NOT overwrite the destination `index.html`; explicit re-copy of `index.html` + `assets\` with `-Force` worked.)
 
 ## GitHub milestone (2026-08-15)
 

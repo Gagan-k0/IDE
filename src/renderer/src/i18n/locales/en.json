@@ -10731,6 +10731,7 @@
           "daemonRunning": "Running on {{url}}",
           "daemonStopped": "Stopped",
           "servingLabel": "Serving",
+          "skillsLabel": "Skills installed",
           "dashboardTitle": "Baton Dashboard",
           "start": "Start Baton",
           "starting": "Starting...",

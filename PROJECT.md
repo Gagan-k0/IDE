@@ -20,6 +20,8 @@ Detailed engineering documentation for the **LogicMantra IDE** project.
 | `src/main/` | Electron main process — IPC handlers, windows, app menu, tray, baton daemon manager |
 | `src/main/ipc/baton.ts` | Baton IPC handler registration (availability / setup / status) |
 | `src/main/ipc/baton-daemon.ts` | Baton daemon lifecycle: root resolution, probe, kill, start, stop |
+| `src/main/ipc/baton-daemon-process.ts` | Baton process plumbing: captureCommandOutput, daemon probe, port/PID, kill, wait helpers |
+| `src/main/ipc/baton-skill-install.ts` | Auto-installs the Baton skill catalog on start + install summary state |
 | `src/preload/` | Preload bridge; `window.api.baton.*` typed surface |
 | `src/shared/baton-types.ts` | Shared Baton types + `BATON_DAEMON_URL` constants |
 | `src/renderer/src/components/settings/BatonPane.tsx` | Settings → Baton UI |
@@ -129,8 +131,25 @@ knowledge graph.
 ### 4.4 UI
 
 `BatonPane.tsx` shows: current folder, CLI/Node/git/uv availability, setup status, daemon
-status, and — when running — the folder the daemon actually serves. All user-visible strings
-go through `translate()`; new keys go into `en.json` (other locales fall back to English).
+status, the folder the daemon actually serves, and — when running — "Skills installed: N / M".
+All user-visible strings go through `translate()`; new keys go into `en.json` (other locales
+fall back to English).
+
+### 4.5 Skill auto-install
+
+On every `startBatonDaemon` (both the reuse and fresh-spawn paths), `baton-skill-install.ts`
+calls `GET /api/skills` then `POST /api/skills/:id/install` with `{"agent":"all"}` for each
+catalogued skill (idempotent; write-gated daemon, loopback `Origin` header). Best-effort: a
+failed/failed catalog call just leaves `skills` null. `BatonDaemonStatus.skills` carries
+`{ total, installed, failed }` for the pane.
+
+### 4.6 Dashboard restyle
+
+The Baton dashboard (`web/` in the Baton checkout) is restyled to match the IDE: zinc palette
+(dark bg `#0a0a0a`, accent `#404040`, border `rgb(255 255 255 / 0.07)`, …) and the Geist
+typeface instead of Google Fonts. Built with `npm run build --prefix web`; the daemon serves
+`web/dist`. Note: the live globally-linked install serves the **Desktop** copy of the Baton
+repo, so restyled `web/dist` assets are synced there too (see `brain.md` → "two baton copies").
 
 ---
 
@@ -188,6 +207,7 @@ The upstream `.gitignore` is kept and extended:
 
 - Full LogicMantra rebrand (naming + logo + Windows build verified).
 - Baton integration (setup → daemon → dashboard) with correct-folder guarantee.
+- Baton skill auto-install on Start Baton + dashboard restyled to the IDE design.
 
 **Verified**
 
