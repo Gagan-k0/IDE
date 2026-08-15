@@ -102,6 +102,19 @@ Implemented exactly per the plan below; the "Start Baton" button now lives in Se
 - Windows: use `getSpawnArgsForWindows`; exe is `LogicMantra.exe`; productName `LogicMantra IDE`; locales no-BOM CRLF; internal identifiers stay `orca` (see Naming decision).
 - Docs to re-read if unsure: `C:\Users\lenovo\Desktop\LogicMantra\Baton-Multi-Agent-\docs\*.md`, `src/commands/setup.ts`, `src/commands/serve.ts` in the baton repo.
 
+## ⚠️ MANDATORY: rebuild after ANY Baton change
+
+**ANY change to the Baton integration code MUST be followed by `pnpm run build:win`** (installer + `dist\win-unpacked\LogicMantra.exe`). The EXE is the only thing the user runs — source-only edits are invisible to them. Files that trigger this rule:
+
+- `src/main/ipc/baton-daemon.ts` (daemon lifecycle — the graph fix lives here)
+- `src/main/ipc/baton.ts` (IPC handlers)
+- `src/shared/baton-types.ts` (types + port/URL constants)
+- `src/preload/api/baton-api.ts` + `src/preload/index.ts` / `api-types.ts`
+- `src/renderer/src/components/settings/BatonPane.tsx` + `baton-search.ts`
+- `src/renderer/src/i18n/locales/*.json` (Baton keys)
+
+Rule of thumb: if a change is under any Baton/`baton` path, run the build before saying "done". Verify with `(Get-Item "dist\win-unpacked\LogicMantra.exe").VersionInfo` and check the timestamp is newer than the edit.
+
 ## Baton wrong-graph bug (fixed 2026-08-15 — this milestone)
 
 **Symptom**: after Baton setup, the knowledge graph shown was for a DIFFERENT folder than the one open in the IDE (e.g. `Desktop\Baton-Multi-Agent-` instead of the IDE's target folder).
@@ -134,6 +147,7 @@ Implemented exactly per the plan below; the "Start Baton" button now lives in Se
 - `pnpm exec oxlint` — clean.
 - 2026-08-15 (baton-daemon.ts milestone) re-verified: `pnpm run typecheck` clean; `pnpm exec oxlint --config config/oxlint-code-quality-type-aware.json --deny-warnings` clean on changed files; `pnpm exec oxlint --config config/oxlint-code-quality-native-plugins.json --deny-warnings` clean; `verify:localization-catalog` (11,831 refs), `verify:localization-extraction`, `verify:localization-coverage` (12 allowlisted) all clean.
 - `pnpm run build:win` — PASSED end-to-end (latest 2026-08-14 ~11:54 PM with the Baton feature). Output: `dist\logicmantra-windows-setup.exe` (~188 MB), `dist\win-unpacked\LogicMantra.exe`, `latest.yml`, `.blockmap`, `builder-debug.yml`.
+- **REBUILD WITH BATON GRAPH FIX — 2026-08-15 12:44 PM PASSED** (EXIT=0). `dist\win-unpacked\LogicMantra.exe` (215 MB, FileVersion 1.4.178-rc.2, ProductName "LogicMantra IDE", CompanyName "logicmantra") + `dist\logicmantra-windows-setup.exe` (179.3 MB). This EXE now includes the wrong-graph fix from `baton-daemon.ts` (edited 11:00 AM, built 12:44 PM). **This is the NEW current build — the 14-08 build is OLD and should not be distributed.**
 - Verified: exe `VersionInfo` shows FileDescription/ProductName = **"LogicMantra IDE"**, CompanyName = **"logicmantra"**.
 - Build blockers fixed along the way: (1) missing VS Build Tools → winget `Microsoft.VisualStudio.2022.BuildTools` (VCTools workload) to compile windows-native-registry; (2) `win.executableName: 'Orca'` → `'LogicMantra'`; (3) hand-built `icon.ico` had corrupt size headers → resedit crashed (`Invalid typed array length`) → regenerated with Pillow (4 valid entries 16/32/48/256, 74,832 bytes); (4) corrupt 62-byte `icon.icns` → regenerated with Pillow (1,174,850 bytes, 7 frames); (5) `UNRESOLVED_IMPORT` for `resources/logo.svg` in `share-card-utils.tsx` — path must be 5 ups (stats/ is at components/ depth), mobile HomeSlide needs 6 ups. (6) Baton integration — all verify checks + build green on first pass.
 
