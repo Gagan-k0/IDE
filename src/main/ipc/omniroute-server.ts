@@ -66,8 +66,11 @@ export async function startOmniRouteServer(): Promise<OmniRouteServerStatus> {
   }
   killTrackedServer()
   const command = resolveCliCommand('omniroute')
+  // Why: `--daemon` spawns the server detached (stdio ignore + unref) and the
+  // CLI exits immediately, so no terminal window stays open for the gateway.
   const { spawnCmd, spawnArgs } = getSpawnArgsForWindows(command, [
     'serve',
+    '--daemon',
     '--no-open',
     '--port',
     String(OMNIROUTE_PORT)

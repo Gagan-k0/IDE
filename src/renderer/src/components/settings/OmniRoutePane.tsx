@@ -9,14 +9,16 @@ import { getOmniRoutePaneSearchEntries } from './omniroute-search'
 import { translate } from '@/i18n/i18n'
 import type {
   OmniRouteAvailability,
-  OmniRouteServerStatus,
-  OmniRouteSetupResult
+  OmniRouteClaudeConfig,
+  OmniRouteConfigureClaudeResult,
+  OmniRouteServerStatus
 } from '../../../../shared/omniroute-types'
 import { OMNIROUTE_URL } from '../../../../shared/omniroute-types'
 
 type OmniRoutePaneState = {
   availability: OmniRouteAvailability | null
   server: OmniRouteServerStatus | null
+  claudeConfig: OmniRouteClaudeConfig | null
   checking: boolean
   starting: boolean
   setupRunning: boolean
@@ -32,6 +34,7 @@ export function OmniRoutePane(): React.JSX.Element {
   const [state, setState] = useState<OmniRoutePaneState>({
     availability: null,
     server: null,
+    claudeConfig: null,
     checking: true,
     starting: false,
     setupRunning: false,
@@ -41,14 +44,16 @@ export function OmniRoutePane(): React.JSX.Element {
 
   const refresh = useCallback(async () => {
     setState((prev) => ({ ...prev, checking: true }))
-    const [availability, server] = await Promise.all([
+    const [availability, server, claudeConfig] = await Promise.all([
       window.api.omniRoute.getAvailability(),
-      window.api.omniRoute.getServerStatus()
+      window.api.omniRoute.getServerStatus(),
+      window.api.omniRoute.getClaudeConfig()
     ])
     setState((prev) => ({
       ...prev,
       availability,
       server,
+      claudeConfig,
       checking: false
     }))
   }, [])
@@ -57,17 +62,45 @@ export function OmniRoutePane(): React.JSX.Element {
     void refresh()
   }, [refresh])
 
+  const handleSetupClaude = useCallback(async () => {
+    setState((prev) => ({ ...prev, setupRunning: true, setupError: null, setupOutput: null }))
+    let setup: OmniRouteConfigureClaudeResult | null = null
+    try {
+      setup = await window.api.omniRoute.configureClaude()
+      setState((prev) => ({
+        ...prev,
+        setupOutput: setup?.output ?? null,
+        claudeConfig: setup
+          ? { settingsPath: setup.settingsPath, configured: setup.configured }
+          : prev.claudeConfig
+      }))
+      if (!setup?.ok) {
+        setState((prev) => ({
+          ...prev,
+          setupError: setup?.error ?? 'OmniRoute configure-claude failed.'
+        }))
+      }
+    } finally {
+      setState((prev) => ({ ...prev, setupRunning: false }))
+    }
+  }, [])
+
   const handleStart = useCallback(async () => {
     setState((prev) => ({ ...prev, starting: true, setupError: null, setupOutput: null }))
     const server = await window.api.omniRoute.startServer()
     setState((prev) => ({ ...prev, starting: false, server }))
-    if (server.running && activeWorktreeId) {
-      createBrowserTab(activeWorktreeId, OMNIROUTE_URL, {
-        title: translate('auto.components.settings.OmniRoutePane.dashboardTitle', 'OmniRoute Dashboard'),
-        activate: true
-      })
+    if (server.running) {
+      if (state.availability?.claudeCodeAvailable && !state.claudeConfig?.configured) {
+        await handleSetupClaude()
+      }
+      if (activeWorktreeId) {
+        createBrowserTab(activeWorktreeId, OMNIROUTE_URL, {
+          title: translate('auto.components.settings.OmniRoutePane.dashboardTitle', 'OmniRoute Dashboard'),
+          activate: true
+        })
+      }
     }
-  }, [activeWorktreeId, createBrowserTab])
+  }, [activeWorktreeId, createBrowserTab, handleSetupClaude, state.availability, state.claudeConfig])
 
   const handleStop = useCallback(async () => {
     const server = await window.api.omniRoute.stopServer()
@@ -83,23 +116,6 @@ export function OmniRoutePane(): React.JSX.Element {
       activate: true
     })
   }, [activeWorktreeId, createBrowserTab])
-
-  const handleSetupClaude = useCallback(async () => {
-    setState((prev) => ({ ...prev, setupRunning: true, setupError: null, setupOutput: null }))
-    let setup: OmniRouteSetupResult | null = null
-    try {
-      setup = await window.api.omniRoute.setupClaude()
-      setState((prev) => ({ ...prev, setupOutput: setup?.output ?? null }))
-      if (!setup?.ok) {
-        setState((prev) => ({
-          ...prev,
-          setupError: setup?.error ?? 'OmniRoute setup-claude failed.'
-        }))
-      }
-    } finally {
-      setState((prev) => ({ ...prev, setupRunning: false }))
-    }
-  }, [])
 
   if (!showOmniRoute) {
     return <div />
@@ -176,6 +192,20 @@ export function OmniRoutePane(): React.JSX.Element {
                 {translate('auto.components.settings.OmniRoutePane.pidLabel', 'PID')}: {server.pid}
               </p>
             ) : null}
+            {availability?.claudeCodeAvailable ? (
+              <p className="mt-1 text-muted-foreground">
+                {translate('auto.components.settings.OmniRoutePane.claudeConfigLabel', 'Claude Code')}:{' '}
+                {state.claudeConfig?.configured
+                  ? translate(
+                      'auto.components.settings.OmniRoutePane.claudeConfigured',
+                      'Configured for OmniRoute'
+                    )
+                  : translate(
+                      'auto.components.settings.OmniRoutePane.claudeNotConfigured',
+                      'Not configured for OmniRoute'
+                    )}
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -216,14 +246,14 @@ export function OmniRoutePane(): React.JSX.Element {
         <Button
           variant="outline"
           onClick={() => void handleSetupClaude()}
-          disabled={!ready || !server?.running || state.setupRunning}
+          disabled={!ready || state.setupRunning}
         >
           {state.setupRunning ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
             <Cable className="size-4" />
           )}
-          {translate('auto.components.settings.OmniRoutePane.setupClaude', 'Setup Claude Code')}
+          {translate('auto.components.settings.OmniRoutePane.setupClaude', 'Configure Claude Code')}
         </Button>
         <Button
           variant="ghost"

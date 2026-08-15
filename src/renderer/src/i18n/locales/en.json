@@ -10760,7 +10760,7 @@
         },
         "OmniRoutePane": {
           "title": "OmniRoute AI gateway",
-          "description": "Run the OmniRoute gateway, generate Claude Code profiles for each model, and open the dashboard.",
+          "description": "Run the OmniRoute gateway, configure Claude Code to route through it, and open the dashboard.",
           "checking": "Checking OmniRoute...",
           "status": "Status",
           "notInstalled": "OmniRoute CLI is not installed on this computer. Install it with: npm install -g omniroute",
@@ -10772,11 +10772,14 @@
           "serverStopped": "Stopped",
           "serverVersion": "Server version",
           "pidLabel": "PID",
+          "claudeConfigLabel": "Claude Code",
+          "claudeConfigured": "Configured for OmniRoute",
+          "claudeNotConfigured": "Not configured for OmniRoute",
           "dashboardTitle": "OmniRoute Dashboard",
           "start": "Start OmniRoute",
           "starting": "Starting...",
           "openDashboard": "Open Dashboard",
-          "setupClaude": "Setup Claude Code",
+          "setupClaude": "Configure Claude Code",
           "stop": "Stop"
         }
       },

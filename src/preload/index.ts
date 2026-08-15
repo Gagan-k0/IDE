@@ -23,6 +23,8 @@ import type {
 } from '../shared/baton-types'
 import type {
   OmniRouteAvailability,
+  OmniRouteClaudeConfig,
+  OmniRouteConfigureClaudeResult,
   OmniRouteServerStatus,
   OmniRouteSetupResult
 } from '../shared/omniroute-types'
@@ -2918,7 +2920,11 @@ const api = {
     getServerStatus: (): Promise<OmniRouteServerStatus> =>
       ipcRenderer.invoke('omniroute:getServerStatus'),
     startServer: (): Promise<OmniRouteServerStatus> => ipcRenderer.invoke('omniroute:startServer'),
-    stopServer: (): Promise<OmniRouteServerStatus> => ipcRenderer.invoke('omniroute:stopServer')
+    stopServer: (): Promise<OmniRouteServerStatus> => ipcRenderer.invoke('omniroute:stopServer'),
+    getClaudeConfig: (): Promise<OmniRouteClaudeConfig> =>
+      ipcRenderer.invoke('omniroute:getClaudeConfig'),
+    configureClaude: (): Promise<OmniRouteConfigureClaudeResult> =>
+      ipcRenderer.invoke('omniroute:configureClaude')
   },
 
   emulator: {

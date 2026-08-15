@@ -1,5 +1,7 @@
 import type {
   OmniRouteAvailability,
+  OmniRouteClaudeConfig,
+  OmniRouteConfigureClaudeResult,
   OmniRouteServerStatus,
   OmniRouteSetupResult
 } from '../../shared/omniroute-types'
@@ -10,4 +12,6 @@ export type OmniRouteApi = {
   getServerStatus: () => Promise<OmniRouteServerStatus>
   startServer: () => Promise<OmniRouteServerStatus>
   stopServer: () => Promise<OmniRouteServerStatus>
+  getClaudeConfig: () => Promise<OmniRouteClaudeConfig>
+  configureClaude: () => Promise<OmniRouteConfigureClaudeResult>
 }

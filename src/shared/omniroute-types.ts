@@ -11,6 +11,19 @@ export type OmniRouteSetupResult = {
   error: string | null
 }
 
+export type OmniRouteClaudeConfig = {
+  settingsPath: string | null
+  configured: boolean
+}
+
+export type OmniRouteConfigureClaudeResult = {
+  ok: boolean
+  output: string
+  error: string | null
+  settingsPath: string | null
+  configured: boolean
+}
+
 export type OmniRouteServerStatus = {
   running: boolean
   url: string
