@@ -61,6 +61,7 @@ import { getBrowserPaneCombinedSearchEntries } from '@/components/settings/brows
 import { getNotificationsPaneSearchEntries } from '@/components/settings/notifications-search'
 import { getOrchestrationPaneSearchEntries } from '@/components/settings/orchestration-search'
 import { getBatonPaneSearchEntries } from '@/components/settings/baton-search'
+import { getOmniRoutePaneSearchEntries } from '@/components/settings/omniroute-search'
 import { getArtifactsSettingsSearchEntries } from '@/components/settings/artifacts-settings-search'
 import { getAutomationsSettingsSearchEntries } from '@/components/settings/automations-settings-search'
 import { getOrcaAccountSettingsSearchEntries } from '@/components/settings/orca-account-settings-search'
@@ -216,6 +217,20 @@ export function buildSettingsNavigationMetadata({
       ),
       icon: GitBranch,
       searchEntries: getBatonPaneSearchEntries(),
+      group: 'capabilities'
+    },
+    {
+      id: 'omniroute',
+      title: translate(
+        'auto.hooks.useSettingsNavigationMetadata.omnirouteTitle',
+        'OmniRoute'
+      ),
+      description: translate(
+        'auto.hooks.useSettingsNavigationMetadata.omnirouteDescription',
+        'Run the OmniRoute gateway, generate Claude Code profiles for each model, and open the dashboard.'
+      ),
+      icon: Cable,
+      searchEntries: getOmniRoutePaneSearchEntries(),
       group: 'capabilities'
     },
     // Why: only surfaced once Linear is connected — a capability that needs a
